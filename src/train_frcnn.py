@@ -77,7 +77,7 @@ def get_test_transform():
         A.Resize(800, 800),
         ToTensorV2(p=1.0)
     ]
-    return A.compose(transforms)
+    return A.Compose(transforms)
 
 
 def bbox_transform(bboxes):
