@@ -137,7 +137,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
     else:
         train_folds = range(n_splits)
 
-    if torch.cude.is_available():
+    if torch.cuda.is_available():
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
