@@ -49,6 +49,7 @@ class WheatDataset(Dataset):
         self.image_ids = dataframe['image_id'].unique()
 
         self.images_loaded = load_images
+
         if load_images:
             self.images = []
             for image_id in self.image_ids:

@@ -109,8 +109,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
     random.seed(seed)
 
     data_dir = os.path.join(base_dir, 'data')
-    train_imgs_dir = os.path.join(base_dir, 'train')
-    test_imgs_dir = os.path.join(base_dir, 'test')
+    train_imgs_dir = os.path.join(data_dir, 'train')
+    test_imgs_dir = os.path.join(data_dir, 'test')
     models_out_dir = os.path.join(base_dir, 'artifacts',
                                   model_name, 'models')
     os.makedirs(models_out_dir, exist_ok=True)
