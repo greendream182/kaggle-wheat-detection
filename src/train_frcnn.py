@@ -146,8 +146,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
         val = train_df.iloc[val_idx].copy()
 
         train_dataset = WheatDataset(train, train_imgs_dir,
-                                     get_train_transform(),
-                                     bbox_transforms=bbox_transform)
+                                     get_train_transform())
         val_dataset = WheatDataset(val, train_imgs_dir,
                                    get_valid_transform(),
                                    return_image_id=True)
