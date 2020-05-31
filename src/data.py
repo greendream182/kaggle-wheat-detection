@@ -52,7 +52,7 @@ class WheatDataset(Dataset):
         if load_images:
             self.images = []
             for image_id in self.image_ids:
-                image = cv2.imread(os.path.join(self.image_dir,
+                image = cv2.imread(os.path.join(image_dir,
                                                 f'{image_id}.jpg'),
                                    cv2.IMREAD_COLOR)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
