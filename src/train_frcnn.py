@@ -187,8 +187,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         model.to(device)
         params = [p for p in model.parameters() if p.requires_grad]
-        optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.95, weight_decay=0.0005)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.5)
+        optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.95, weight_decay=0.0005)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.75)
 
         loss_hist = LossAverager()
 
