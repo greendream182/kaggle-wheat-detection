@@ -9,7 +9,6 @@ Potential improvements:
 """
 import logging
 import os
-import random
 import torch
 import torchvision
 
@@ -35,8 +34,7 @@ def get_train_transform():
     transforms = [
         A.Flip(p=0.5),
         A.RandomRotate90(p=0.5),
-        A.RandomSizedCrop(min_max_height=(random.randint(600, 950),
-                                          random.randint(600, 950)),
+        A.RandomSizedCrop(min_max_height=(600, 950),
                           height=1024,
                           width=1024,
                           p=0.5),
@@ -106,7 +104,6 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
     only train the specified splits.
     """
     np.random.seed(seed)
-    random.seed(seed)
 
     data_dir = os.path.join(base_dir, 'data')
     train_imgs_dir = os.path.join(data_dir, 'train')
