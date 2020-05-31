@@ -97,7 +97,7 @@ def collate_fn(batch):
 
 def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
           train_folds=None, model_name='faster-rcnn-baseline',
-          seed=15501, verbose=True):
+          eval_per_n_epochs=10, seed=15501, verbose=True):
     """
     Train frcnn baseline.
     Largely inspired by: https://www.kaggle.com/pestipeti/pytorch-starter-fasterrcnn-train
@@ -151,11 +151,9 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         train_dataset = WheatDataset(train, train_imgs_dir,
                                      get_train_transform(),
-                                     bbox_transforms=bbox_transform,
-                                     load_images=True)
+                                     bbox_transforms=bbox_transform)
         val_dataset = WheatDataset(val, train_imgs_dir,
                                    get_valid_transform(),
-                                   load_images=True,
                                    return_image_id=True)
 
         test_dataset = WheatDataset(test_df, test_imgs_dir,
@@ -227,8 +225,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
             info = f'Epoch #{epoch} loss: {loss_hist.value}'
             log_message(info, logger, verbose)
 
-            if epoch+1 % 10 == 0:
-                # may want to add this to eval.py... mayyyybe
+            if epoch+1 % eval_per_n_epochs == 0:
+                # may want to add this to eval.py... somehow?
                 thresholds = np.linspace(0.5, 0.75, 6)
                 precisions_by_thresh = []
 
