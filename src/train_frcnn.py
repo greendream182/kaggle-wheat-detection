@@ -34,10 +34,10 @@ def get_train_transform():
     transforms = [
         A.Flip(p=0.5),
         A.RandomRotate90(p=0.5),
-        A.RandomSizedCrop(min_max_height=(600, 950),
-                          height=1024,
-                          width=1024,
-                          p=0.5),
+        # A.RandomSizedCrop(min_max_height=(600, 950),
+        #                   height=1024,
+        #                   width=1024,
+        #                   p=0.5),
         # A.RandomCrop(800, 800, p=0.7),
         A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
         A.RandomBrightnessContrast(),
@@ -147,6 +147,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         train_dataset = WheatDataset(train, train_imgs_dir,
                                      get_train_transform())
+
         val_dataset = WheatDataset(val, train_imgs_dir,
                                    get_valid_transform(),
                                    return_image_id=True)
@@ -196,7 +197,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
             loss_hist.reset()
 
-            for it, (images, targets) in enumerate(train_data_loader):
+            it = 1
+            for images, targets, _ in train_data_loader:
                 images = list(image.to(device) for image in images)
                 targets = [{k: v.long().to(device) for k, v in t.items()} for t in targets]
 
@@ -211,9 +213,10 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 losses.backward()
                 optimizer.step()
 
-                if it+1 % 20 == 0:
+                if it % 20 == 0:
                     info = f'Iteration #{it} loss: {loss_value}'
                     log_message(info, logger, verbose)
+                it += 1
 
             lr_scheduler.step()
 

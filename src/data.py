@@ -39,8 +39,7 @@ class WheatDataset(Dataset):
     Adapted from: https://www.kaggle.com/pestipeti/pytorch-starter-fasterrcnn-train
     """
     def __init__(self, dataframe, image_dir, transforms=None,
-                 bbox_transforms=None, train=True, load_images=False,
-                 return_image_id=False):
+                 bbox_transforms=None, train=True, load_images=False):
         """
         load_images - load all images into memory to avoid latency of reloading them.
         """
@@ -69,8 +68,6 @@ class WheatDataset(Dataset):
         self.bbox_transforms = bbox_transforms
 
         self.train = train
-
-        self.return_image_id = return_image_id
 
     def __getitem__(self, index: int):
         image_id = self.image_ids[index]
@@ -126,9 +123,7 @@ class WheatDataset(Dataset):
             image = sample['image']
             target['boxes'] = torch.tensor(sample['bboxes'])
 
-        if self.train and not self.return_image_id:
-            return image, target
-        elif self.train:
+        if self.train:
             return image, target, image_id
         else:
             return image, image_id
