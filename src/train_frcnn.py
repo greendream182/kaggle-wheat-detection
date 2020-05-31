@@ -113,9 +113,12 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
     test_imgs_dir = os.path.join(base_dir, 'test')
     models_out_dir = os.path.join(base_dir, 'artifacts',
                                   model_name, 'models')
+    os.makedirs(models_out_dir, exist_ok=True)
     preds_out_dir = os.path.join(base_dir, 'artifacts',
                                  model_name, 'predictions')
+    os.makedirs(preds_out_dir, exist_ok=True)
     log_file = os.path.join(base_dir, 'artifacts', model_name, 'train.log')
+    open(log_file, 'a').close() # create empty file.
 
     logger = logging.getLogger(model_name)
     logger.addHandler(logging.FileHandler(log_file))
@@ -169,7 +172,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                                                           num_classes)
 
         train_data_loader = DataLoader(train_dataset,
-                                       batch_size=16,
+                                       batch_size=batch_size,
                                        shuffle=False,
                                        num_workers=4,
                                        collate_fn=collate_fn)
