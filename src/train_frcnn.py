@@ -9,6 +9,7 @@ Potential improvements:
 """
 import logging
 import os
+import time
 import torch
 import torchvision
 
@@ -32,12 +33,12 @@ from .utils import gauss_noise_bboxes, LossAverager, log_message
 # Data augmentations
 def get_train_transform():
     transforms = [
-        A.Flip(p=0.5),
+        A.Flip(p=0.25),
         A.RandomRotate90(p=0.5),
-        # A.RandomSizedCrop(min_max_height=(600, 950),
+        # A.RandomSizedCrop(min_max_height=(900, 900),
         #                   height=1024,
         #                   width=1024,
-        #                   p=0.5),
+        #                   p=0.25),
         # A.RandomCrop(800, 800, p=0.7),
         A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
         A.RandomBrightnessContrast(),
@@ -118,6 +119,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
     logger = logging.getLogger(model_name)
     logger.addHandler(logging.FileHandler(log_file))
+    logger.setLevel(logging.WARNING)
 
     train_df, test_df = get_train_test_df(data_dir)
 
@@ -186,15 +188,18 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
         model.to(device)
         params = [p for p in model.parameters() if p.requires_grad]
         optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.95, weight_decay=0.0005)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.5)
 
         loss_hist = LossAverager()
 
-        for epoch in range(n_epochs):
+        tstart = time.time()
+        for epoch in range(1, n_epochs+1):
             info = f'Training epoch #{epoch}.'
             log_message(info, logger, verbose)
 
             loss_hist.reset()
+
+            model.train()
 
             it = 1
             for images, targets, _ in train_data_loader:
@@ -219,13 +224,16 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
             lr_scheduler.step()
 
-            info = f'Epoch #{epoch} loss: {loss_hist.value}'
+            tepoch = time.time() - tstart
+            info = f'Epoch #{epoch} completed in {tepoch} seconds. Loss: {loss_hist.value}.'
             log_message(info, logger, verbose)
 
             if epoch+1 % eval_per_n_epochs == 0:
                 # may want to add this to eval.py... somehow?
                 thresholds = np.linspace(0.5, 0.75, 6)
                 precisions_by_thresh = []
+
+                model.eval()
 
                 for images, targets, _ in val_data_loader:
                     images = list(image.to(device) for image in images)
@@ -240,12 +248,13 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                                                                               preds,
                                                                               thresholds=thresholds,
                                                                               form='pascal_voc')
-                        precisions_by_thresh.append(ap_by_thresh)
+                        precisions_by_thresh.extend(ap_by_thresh)
 
-                mean_precisions_by_thresh = np.array(precisions_by_thresh).mean(axis=0)
-                mean_ap = mean_precisions_by_thresh.mean()
+                mean_precisions_by_thresh = pd.DataFrame(precisions_by_thresh, columns=['thresh', 'ap'])
+                mean_precisions_by_thresh = mean_precisions_by_thresh.groupby('thresh')['ap'].mean().reset_index()
+                mean_ap = mean_precisions_by_thresh['ap'].mean()
 
-                for thresh, ap in zip(thresholds, mean_precisions_by_thresh):
+                for thresh, ap in zip(mean_precisions_by_thresh['thresh'], mean_precisions_by_thresh['ap']):
                     info = f'Epoch #{epoch} - AP at IOU threshold {thresh}: {ap}.'
                     log_message(info, logger, verbose)
 
@@ -255,6 +264,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
         # save model.
         torch.save(model.state_dict(), os.path.join(models_out_dir,
                                                     f'trained_fold_{split_n}.pth'))
+
+        model.eval()
 
         detection_threshold = 0.1
         res = []
@@ -273,7 +284,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
                 boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
 
-                for out in np.hstack([boxes, scores]):
+                for out in np.hstack([boxes, scores.reshape(-1, 1)]):
                     res.append([image_id] + list(out))
 
         df_res = pd.DataFrame(res, columns=['image_id', 'x', 'y', 'w', 'h', 'score'])
@@ -296,7 +307,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 boxes[:, 2] = boxes[:, 2] - boxes[:, 0]
                 boxes[:, 3] = boxes[:, 3] - boxes[:, 1]
 
-                for out in np.hstack([boxes, scores]):
+                for out in np.hstack([boxes, scores.reshape(-1, 1)]):
                     res.append([image_id] + list(out))
 
         df_res = pd.DataFrame(res, columns=['image_id', 'x', 'y', 'w', 'h', 'score'])

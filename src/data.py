@@ -121,7 +121,9 @@ class WheatDataset(Dataset):
         if self.transforms:
             sample = self.transforms(**sample)
             image = sample['image']
-            target['boxes'] = torch.tensor(sample['bboxes'])
+
+            if self.train:
+                target['boxes'] = torch.tensor(sample['bboxes'])
 
         if self.train:
             return image, target, image_id
