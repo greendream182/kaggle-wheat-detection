@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader
 
 from .data import get_train_test_df, WheatDataset
 from .eval import calculate_image_precision_by_threshold
-from .utils import gauss_noise_bbox, LossAverager, log_message
+from .utils import gauss_noise_bboxes, LossAverager, log_message
 
 
 # Data augmentations
@@ -82,8 +82,7 @@ def bbox_transform(bboxes):
     """
     Transformations to be done to the bboxes.
     """
-    for bbox in bboxes:
-        gauss_noise_bbox(bbox, sigma=2)
+    bboxes = gauss_noise_bboxes(bboxes, sigma=2)
 
     return bboxes
 

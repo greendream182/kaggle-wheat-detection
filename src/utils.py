@@ -35,13 +35,13 @@ def plot_image_and_bboxes(im, bboxes=[], colors=[], bw=2,
     return fig
 
 
-def gauss_noise_bbox(bbox, mu=0, sigma=1):
+def gauss_noise_bboxes(bboxes, mu=0, sigma=2):
     """
-    bbox - tuple (x, y, x+width, y+height)
+    bboxes - ndarray
     mu - mean
     sigma - std
     """
-    return (i + np.random.normal(mu, sigma) for i in bbox)
+    bboxes = bboxes + np.random.normal(mu, sigma, bboxes.shape)
 
 
 def log_message(msg, logger, verbose=True):
