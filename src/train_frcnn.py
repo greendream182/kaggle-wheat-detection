@@ -149,8 +149,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                                      get_train_transform())
 
         val_dataset = WheatDataset(val, train_imgs_dir,
-                                   get_valid_transform(),
-                                   return_image_id=True)
+                                   get_valid_transform())
 
         test_dataset = WheatDataset(test_df, test_imgs_dir,
                                     get_test_transform(),
