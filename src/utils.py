@@ -44,9 +44,12 @@ def gauss_noise_bboxes(bboxes, mu=0, sigma=2):
     bboxes = bboxes + np.random.normal(mu, sigma, bboxes.shape)
 
 
-def log_message(msg, logger, verbose=True):
+def log_message(msg, logger, verbose=True, err=False):
     """ Log message, print if verbose. """
-    logger.info(msg)
+    if err:
+        logger.error(msg)
+    else:
+        logger.info(msg)
     if verbose:
         print(msg)
 

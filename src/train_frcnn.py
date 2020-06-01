@@ -187,7 +187,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         model.to(device)
         params = [p for p in model.parameters() if p.requires_grad]
-        optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.95, weight_decay=0.0005)
+        optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.9, weight_decay=0.0005)
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.75)
 
         loss_hist = LossAverager()
@@ -203,6 +203,18 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
             it = 1
             for images, targets, _ in train_data_loader:
+                for im, targ in zip(images, targets):
+                    if torch.isnan(im).any():
+                        info = f'ERROR: NaN in input image. Epoch {epoch}, iteration {it}.'
+                        log_message(info, logger, verbose)
+                        continue
+
+                    for key, val in targ.items():
+                        if torch.isnan(val).any():
+                            info = f'ERROR: NaN in target {key}. Epoch {epoch}, iteration {it}.'
+                            log_message(info, logger, verbose)
+                            continue
+
                 images = list(image.to(device) for image in images)
                 targets = [{k: v.long().to(device) for k, v in t.items()} for t in targets]
 
