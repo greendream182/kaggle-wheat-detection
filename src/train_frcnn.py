@@ -227,6 +227,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
                 optimizer.zero_grad()
                 losses.backward()
+
+                torch.nn.utils.clip_grad_norm(model.parameters(), 2)
                 optimizer.step()
 
                 if it % 20 == 0:
