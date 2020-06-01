@@ -35,21 +35,30 @@ def get_train_transform():
     transforms = [
         A.Flip(p=0.25),
         A.RandomRotate90(p=0.5),
-        # A.RandomSizedCrop(min_max_height=(900, 900),
-        #                   height=1024,
-        #                   width=1024,
-        #                   p=0.25),
+        A.RandomSizedCrop(min_max_height=(800, 800),
+                          height=1024,
+                          width=1024,
+                          p=0.25),
         # A.RandomCrop(800, 800, p=0.7),
-        A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
-        A.RandomBrightnessContrast(),
+        # A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
+        A.OneOf([A.HueSaturationValue(hue_shift_limit=0.2,
+                                      sat_shift_limit=0.2,
+                                      val_shift_limit=0.2,
+                                      p=0.9),
+                 A.RandomBrightnessContrast(brightness_limit=0.2,
+                                            contrast_limit=0.2,
+                                            p=0.9)],
+                p=0.9),
         # A.Normalize(),
         A.HorizontalFlip(p=0.25),
         A.VerticalFlip(p=0.25),
-        A.Resize(800, 800),
+        A.Resize(512, 512, p=1.0),
         ToTensorV2(p=1.0)
     ]
     bbox_params = {
         'format': 'pascal_voc',
+        'min_area': 0,
+        'min_visibility': 0,
         'label_fields': ['labels']
     }
     return A.Compose(transforms,
@@ -59,7 +68,7 @@ def get_train_transform():
 def get_valid_transform():
     transforms = [
         # A.Normalize(),
-        A.Resize(800, 800),
+        A.Resize(512, 512, p=1.0),
         ToTensorV2(p=1.0)
     ]
     bbox_params = {
@@ -73,7 +82,7 @@ def get_valid_transform():
 def get_test_transform():
     transforms = [
         # A.Normalize(),
-        A.Resize(800, 800),
+        A.Resize(800, 800, p=1.0),
         ToTensorV2(p=1.0)
     ]
     return A.Compose(transforms)
@@ -168,7 +177,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         train_data_loader = DataLoader(train_dataset,
                                        batch_size=batch_size,
-                                       shuffle=False,
+                                       shuffle=True,
                                        num_workers=4,
                                        collate_fn=collate_fn)
 
@@ -187,8 +196,8 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
         model.to(device)
         params = [p for p in model.parameters() if p.requires_grad]
-        optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.9, weight_decay=0.0005)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.75)
+        optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 5, gamma=0.5)
 
         loss_hist = LossAverager()
 
@@ -228,7 +237,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 optimizer.zero_grad()
                 losses.backward()
 
-                torch.nn.utils.clip_grad_norm(model.parameters(), 2)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 2)
                 optimizer.step()
 
                 if it % 20 == 0:
@@ -239,7 +248,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
             lr_scheduler.step()
 
             tepoch = time.time() - tstart
-            info = f'Epoch #{epoch} completed in {tepoch} seconds. Loss: {loss_hist.value}.'
+            info = f'Epoch #{epoch} completed after {tepoch // 60} minutes {round(tepoch % 60)} seconds. Loss: {loss_hist.value}.'
             log_message(info, logger, verbose)
 
             if epoch+1 % eval_per_n_epochs == 0:
