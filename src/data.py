@@ -88,7 +88,7 @@ class WheatDataset(Dataset):
             # temporary solution to mislabeling in the training data
             # ref: https://www.kaggle.com/c/global-wheat-detection/discussion/149032
             records['area'] = records['w'] * records['h']
-            records = records[records['area'].between(150, 100000)]
+            records = records[records['area'].between(150, 1100000)]
 
             boxes = records[['x', 'y', 'w', 'h']].values
 

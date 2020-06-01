@@ -8,6 +8,7 @@ Potential improvements:
     Tuning hyperparameters
 """
 import logging
+import math
 import os
 import time
 import torch
@@ -40,15 +41,15 @@ def get_train_transform():
                           width=1024,
                           p=0.25),
         # A.RandomCrop(800, 800, p=0.7),
-        # A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
+        A.GaussNoise(var_limit=(0.05, 0.15), p=0.7),
         A.OneOf([A.HueSaturationValue(hue_shift_limit=0.2,
                                       sat_shift_limit=0.2,
                                       val_shift_limit=0.2,
-                                      p=0.9),
+                                      p=0.5),
                  A.RandomBrightnessContrast(brightness_limit=0.2,
                                             contrast_limit=0.2,
-                                            p=0.9)],
-                p=0.9),
+                                            p=0.5)],
+                p=0.5),
         # A.Normalize(),
         A.HorizontalFlip(p=0.25),
         A.VerticalFlip(p=0.25),
@@ -215,13 +216,13 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 for im, targ in zip(images, targets):
                     if torch.isnan(im).any():
                         info = f'ERROR: NaN in input image. Epoch {epoch}, iteration {it}.'
-                        log_message(info, logger, verbose)
+                        log_message(info, logger, verbose, err=True)
                         continue
 
                     for key, val in targ.items():
                         if torch.isnan(val).any():
                             info = f'ERROR: NaN in target {key}. Epoch {epoch}, iteration {it}.'
-                            log_message(info, logger, verbose)
+                            log_message(info, logger, verbose, err=True)
                             continue
 
                 images = list(image.to(device) for image in images)
@@ -232,12 +233,19 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
                 losses = sum(loss for loss in loss_dict.values())
                 loss_value = losses.item()
 
+                if not math.isfinite(loss_value):
+                    info = f'Loss {loss_value} is not finite. Epoch {epoch}, iteration {it}.'
+                    log_message(info, logger, verbose, err=True)
+                    optimizer.zero_grad()
+                    continue
+
                 loss_hist.send(loss_value)
 
                 optimizer.zero_grad()
+
                 losses.backward()
 
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 2)
+                torch.nn.utils.clip_grad_value_(model.parameters(), 2)
                 optimizer.step()
 
                 if it % 20 == 0:
