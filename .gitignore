@@ -1,6 +1,8 @@
 data
 notebooks
 
+.vs*
+
 .DS_Store
 
 # Byte-compiled / optimized / DLL files

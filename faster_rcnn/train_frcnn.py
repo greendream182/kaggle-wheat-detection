@@ -26,9 +26,9 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from torch.utils.data import DataLoader
 
-from .data import get_train_test_df, WheatDataset
-from .eval import calculate_image_precision_by_threshold
-from .utils import gauss_noise_bboxes, LossAverager, log_message
+from faster_rcnn.dataset import WheatDataset, get_train_test_df
+from faster_rcnn.eval import calculate_image_precision_by_threshold
+from faster_rcnn.utils import gauss_noise_bboxes, LossAverager, log_message
 
 
 # Data augmentations
@@ -83,7 +83,7 @@ def get_valid_transform():
 def get_test_transform():
     transforms = [
         # A.Normalize(),
-        A.Resize(800, 800, p=1.0),
+        A.Resize(512, 512, p=1.0),
         ToTensorV2(p=1.0)
     ]
     return A.Compose(transforms)
@@ -129,7 +129,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
 
     logger = logging.getLogger(model_name)
     logger.addHandler(logging.FileHandler(log_file))
-    logger.setLevel(logging.WARNING)
+    logger.setLevel(logging.INFO)
 
     train_df, test_df = get_train_test_df(data_dir)
 
@@ -198,7 +198,7 @@ def train(base_dir, n_splits=5, n_epochs=40, batch_size=16,
         model.to(device)
         params = [p for p in model.parameters() if p.requires_grad]
         optimizer = torch.optim.SGD(params, lr=0.005, momentum=0.9, weight_decay=0.0005)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.5)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.75)
 
         loss_hist = LossAverager()
 

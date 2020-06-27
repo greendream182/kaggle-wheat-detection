@@ -16,7 +16,7 @@ def plot_image_and_bboxes(im, bboxes=[], colors=[], bw=2,
     bw - width of bboxes
     """
     if ax is None:
-        fig, ax = plt.suplots(1, 1, figsize=figsize)
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
 
     if not colors:
         colors = [(255, 0, 0) for i in range(len(bboxes))]
