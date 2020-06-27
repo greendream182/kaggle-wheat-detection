@@ -3,11 +3,17 @@ EfficientDet training script.
 
 Adapted from https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch
 """
+import datetime
 import os
 import torch
 
+import numpy as np
+
+from torch import nn
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from tensorboardX import SummaryWriter
+from tqdm.autonotebook import tqdm
 
 from efficientdet.backbone import EfficientDetBackbone
 from efficientdet.dataset import get_train_test_df, WheatDataset, collater, Normalizer, Augmenter, Resizer
@@ -42,7 +48,38 @@ def save_checkpoint(model, name, path):
 
 
 def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, version=5, weights_path=None, head_only=False,
-          num_gpus=1, seed=15501, out_dir='../models/kaggle_wheat/artifacts', debug=False):
+          num_gpus=1, seed=15501, save_interval=2000, out_dir='.', debug=False):
+    """[summary]
+
+    Parameters
+    ----------
+    base_dir : str
+        Directory to kaggle wheat challenge type directory for training.
+    batch_size : int, optional
+        batch size, by default 8
+    lr : float, optional
+        learning rate, by default 10e-4
+    num_epochs : int, optional
+        number of epochs to train for, by default 20
+    num_workers : int, optional
+        num_workers for dataloader, by default 12
+    version : int, optional
+        efficientdet model version, by default 5
+    weights_path : str, optional
+        path to pretrained model, by default None
+    head_only : bool, optional
+        train only head, by default False
+    num_gpus : int, optional
+        number of GPUs to train with, by default 1
+    seed : int, optional
+        random seed, by default 15501
+    save_interval : int, optional
+        checkpoint model every save_interval steps, by default 2000
+    out_dir : str, optional
+        output directory for logs and checkpoints, by default '.'
+    debug : bool, optional
+        debug flag, by default False
+    """
     data_dir = os.path.join(base_dir, 'data')
     train_imgs_dir = os.path.join(data_dir, 'train')
     test_imgs_dir = os.path.join(data_dir, 'test')
@@ -209,7 +246,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
                     progress_bar.set_description(
                         'Step: {}. Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
-                            step, epoch, opt.num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
+                            step, epoch, num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
                             reg_loss.item(), loss.item()))
                     writer.add_scalars('Loss', {'train': loss}, step)
                     writer.add_scalars('Regression_loss', {'train': reg_loss}, step)
@@ -221,7 +258,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
                     step += 1
 
-                    if step % opt.save_interval == 0 and step > 0:
+                    if step % save_interval == save_interval and step > 0:
                         save_checkpoint(model, f'efficientdet-d{version}_{epoch}_{step}.pth', saved_path)
                         print('checkpoint...')
 
