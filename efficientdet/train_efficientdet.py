@@ -6,6 +6,7 @@ Adapted from https://github.com/zylo117/Yet-Another-EfficientDet-Pytorch
 import datetime
 import os
 import torch
+import traceback
 
 import numpy as np
 
@@ -48,7 +49,7 @@ def save_checkpoint(model, name, path):
 
 
 def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, version=5, weights_path=None, head_only=False,
-          num_gpus=1, seed=15501, save_interval=2000, out_dir='.', debug=False):
+          num_gpus=1, optim='adamw', seed=15501, save_interval=2000, out_dir='.', debug=False):
     """[summary]
 
     Parameters
@@ -131,7 +132,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     test_generator = DataLoader(test_dataset, **test_params)
 
     anchors_scales = '[2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]'
-    anchors_ratios = '[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]']
+    anchors_ratios = '[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]]'
     model = EfficientDetBackbone(num_classes=1, compound_coef=version,
                                  ratios=eval(anchors_ratios), scales=eval(anchors_scales))
 
@@ -185,14 +186,14 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     # warp the model with loss function, to reduce the memory usage on gpu0 and speedup
     model = ModelWithLoss(model, debug=debug)
 
-    if params.num_gpus > 0:
+    if num_gpus > 0:
         model = model.cuda()
-        if params.num_gpus > 1:
+        if num_gpus > 1:
             model = CustomDataParallel(model, num_gpus)
             if use_sync_bn:
                 patch_replication_callback(model)
 
-    if opt.optim == 'adamw':
+    if optim == 'adamw':
         optimizer = torch.optim.AdamW(model.parameters(), lr)
     else:
         optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9, nesterov=True)
@@ -223,7 +224,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
                     imgs = data['img']
                     annot = data['annot']
 
-                    if params.num_gpus == 1:
+                    if num_gpus == 1:
                         # if only one gpu, just send it to cuda:0
                         # elif multiple gpus, send it to multiple gpus in CustomDataParallel, not here
                         imgs = imgs.cuda()
