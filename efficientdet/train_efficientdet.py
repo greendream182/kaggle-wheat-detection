@@ -132,7 +132,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     test_generator = DataLoader(test_dataset, **test_params)
 
     anchors_scales = '[2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]'
-    anchors_ratios = '[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]]'
+    anchors_ratios = '[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]'
     model = EfficientDetBackbone(num_classes=1, compound_coef=version,
                                  ratios=eval(anchors_ratios), scales=eval(anchors_scales))
 
@@ -207,6 +207,8 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     model.train()
 
     num_iter_per_epoch = len(training_generator)
+
+    print('[INFO] Starting training.')
 
     try:
         for epoch in range(num_epochs):

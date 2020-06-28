@@ -1,6 +1,8 @@
 import os
 import torch
+
 import numpy as np
+import pandas as pd
 
 from torch.utils.data import Dataset, DataLoader
 import cv2
@@ -53,6 +55,7 @@ class WheatDataset(Dataset):
             annot = self.load_annotations(idx)
             sample = {'img': img, 'annot': annot}
         else:
+            sample = {'img': img}
 
         if self.transform:
             sample = self.transform(sample)
@@ -137,7 +140,7 @@ class Resizer(object):
 
         if 'annot' in sample:
             annots = sample['annot']
-            annots = annots[:, :4] *= scale
+            annots[:, :4] *= scale
             sample['annot'] = torch.from_numpy(annots)
 
         return sample
@@ -173,6 +176,7 @@ class Normalizer(object):
         self.std = np.array([[std]])
 
     def __call__(self, sample):
+        image = sample['image']
         sample['img'] = ((image.astype(np.float32) - self.mean) / self.std)
 
         return sample
