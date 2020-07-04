@@ -17,7 +17,8 @@ from tensorboardX import SummaryWriter
 from tqdm.autonotebook import tqdm
 
 from efficientdet.backbone import EfficientDetBackbone
-from efficientdet.dataset import get_train_test_df, WheatDataset, collater, Normalizer, Augmenter, Resizer
+from efficientdet.dataset import get_train_test_df, WheatDataset, collater
+from efficientdet.augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, RandomRotate
 
 from efficientdet.efficientdet.loss import FocalLoss
 from efficientdet.utils.sync_batchnorm import patch_replication_callback
@@ -100,6 +101,27 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
     train_df, test_df = get_train_test_df(data_dir)
 
+    input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
+    immean = [0.485, 0.456, 0.406]
+    imstd = [0.229, 0.224, 0.225]
+
+    train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
+                                          Flip(),
+                                          GaussBlur(p=0.5),
+                                          AdjustContrast(p=0.3),
+                                          AdjustBrightness(p=0.3),
+                                          AdjustGamma(p=0.3),
+                                          RandomRotate(),
+                                          Resizer(input_sizes[version])])
+    test_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
+                                         Resizer(input_sizes[version])])
+
+    train_dataset = WheatDataset(train_df, train_imgs_dir,
+                                 train_transform, mixup=True)
+
+    test_dataset = WheatDataset(test_df, test_imgs_dir,
+                                test_transform, mixup=False)
+
     training_params = {'batch_size': batch_size,
                        'shuffle': True,
                        'drop_last': True,
@@ -111,22 +133,6 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
                    'drop_last': True,
                    'collate_fn': collater,
                    'num_workers': num_workers}
-
-    input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
-    immean = [0.485, 0.456, 0.406]
-    imstd = [0.229, 0.224, 0.225]
-
-    train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
-                                          Augmenter(),
-                                          Resizer(input_sizes[version])])
-    test_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
-                                         Resizer(input_sizes[version])])
-
-    train_dataset = WheatDataset(train_df, train_imgs_dir,
-                                 train_transform)
-
-    test_dataset = WheatDataset(test_df, test_imgs_dir,
-                                test_transform, train=False)
 
     training_generator = DataLoader(train_dataset, **training_params)
     test_generator = DataLoader(test_dataset, **test_params)
@@ -212,14 +218,14 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
     try:
         for epoch in range(num_epochs):
-            last_epoch = step // num_iter_per_epoch
-            if epoch < last_epoch:
-                continue
+            # last_epoch = step // num_iter_per_epoch
+            # if epoch < last_epoch:
+            #     continue
 
             epoch_loss = []
             progress_bar = tqdm(training_generator)
             for iter, data in enumerate(progress_bar):
-                if iter < step - last_epoch * num_iter_per_epoch:
+                if iter < step - epoch * num_iter_per_epoch:
                     progress_bar.update()
                     continue
                 try:

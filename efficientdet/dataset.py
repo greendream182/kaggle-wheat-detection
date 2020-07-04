@@ -1,11 +1,12 @@
+import cv2
 import os
+import random
 import torch
 
 import numpy as np
 import pandas as pd
 
-from torch.utils.data import Dataset, DataLoader
-import cv2
+from torch.utils.data import Dataset
 
 
 def get_train_test_df(base_dir):
@@ -18,23 +19,29 @@ def get_train_test_df(base_dir):
     ├── test
     └── train
     """
-    train_df = pd.read_csv(os.path.join(base_dir, 'train.csv'))
-    test_df = pd.read_csv(os.path.join(base_dir, 'sample_submission.csv'))
+    train_df = pd.read_csv(os.path.join(base_dir, 'train_df_fixed.csv'))
+    test_df = pd.read_csv(os.path.join(base_dir, 'test.csv'))
 
-    bbox_cols = ['x', 'y', 'w', 'h']
-    train_df = train_df.assign(**dict.fromkeys(bbox_cols, -1.))
+    def extract_bboxes(df):
+        bbox_cols = ['x', 'y', 'w', 'h']
+        df = df.assign(**dict.fromkeys(bbox_cols, np.nan))
 
-    train_df.loc[:, bbox_cols] = train_df['bbox'].str.replace('[^0-9 .]',
-                                                              '',
-                                                              regex=True).str.split().tolist()
-    train_df.loc[:, bbox_cols] = train_df.loc[:, bbox_cols].astype(np.float)
+        df.loc[:, bbox_cols] = df['bbox'].str.replace('[^0-9 .]',
+                                                      '',
+                                                      regex=True).str.split().tolist()
+        df.loc[:, bbox_cols] = df.loc[:, bbox_cols].astype(np.float32)
+        return df
+
+    train_df = extract_bboxes(train_df)
+    test_df = extract_bboxes(test_df)
 
     return train_df, test_df
 
 
 class WheatDataset(Dataset):
 
-    def __init__(self, dataframe, image_dir, transform=None, train=True):
+    def __init__(self, dataframe, image_dir, transform=None, 
+                 mixup=False, train=True):
         super().__init__()
 
         self.image_ids = dataframe['image_id'].unique()
@@ -45,11 +52,20 @@ class WheatDataset(Dataset):
         self.image_dir = image_dir
 
         self.transform = transform
+        self.mixup = mixup
+        self.train = train
+
 
     def __len__(self):
         return len(self.image_ids)
 
     def __getitem__(self, idx):
+        if not self.mixup:
+            return self._getitem(idx)
+        else:
+            return self._getmixup(idx)
+
+    def _getitem(self, idx):
         img = self.load_image(idx)
         if self.train:
             annot = self.load_annotations(idx)
@@ -61,6 +77,59 @@ class WheatDataset(Dataset):
             sample = self.transform(sample)
         return sample
 
+    def _getmixup(self, idx):
+        """
+        Mixup in this case represents swapping a horzontal or vertical cut of the images.
+        """
+        if not self.train:
+            raise RuntimeWarning('Can not use mixup when in test mode.')
+            return self._getitem(idx)
+
+        img = self.load_image(idx)
+        annot = self.load_annotations(idx)
+
+        randidx = random.randint(0, len(self.image_ids) - 1)
+        if randidx == idx:
+            return sample
+
+        randimg = self.load_image(randidx)
+        randannot = self.load_annotations(randidx)
+
+        # mixup must swap at least 1/8th of the image, at most 2/3
+        min_swp = int(img.shape[0] * 0.125)
+        max_swp = int(img.shape[0] * 0.66)
+        cutsz = random.randint(min_swp, max_swp)
+        
+        if np.random.rand() <= 0.5:
+            # horizontal cut
+            img[:cutsz, :, :] = randimg[:cutsz, :, :]
+
+            randannot = randannot[(randannot[:, 1] + 45) < cutsz] # ymin too high
+            randannot[:, 3] = np.where(randannot[:, 3] >= cutsz, cutsz-1, randannot[:, 3])
+            
+            annot = annot[(annot[:, 3] + 45 > cutsz] # drop annot w. low ymax
+            annot[:, 1] = np.where(annot[:, 1] < cutsz, cutsz, annot[:, 1])
+
+            annot = np.concatenate([annot, randannot])
+        else:
+            # vertical cut
+            img[:, :cutsz, :] = randimg[:, :cutsz, :]
+
+            randannot = randannot[(randannot[:, 0] + 45) < cutsz] # xmin too high
+            randannot[:, 2] = np.where(randannot[:, 2] >= cutsz, cutsz-1, randannot[:, 2])
+            
+            annot = annot[(annot[:, 2] + 45) > cutsz] # drop annot w. low xmax
+            annot[:, 0] = np.where(annot[:, 0] < cutsz, cutsz, annot[:, 0])
+
+            annot = np.concatenate([annot, randannot])
+
+        # hack-fix
+        # drop annotations with width/height 25 or fewer pixels
+        annot = annot[annot[:, 2] - annot[:, 0] > 25]
+        annot = annot[annot[:, 3] - annot[:, 1] > 25]
+        
+        return {'img': img, 'annot': annot}
+ 
     def load_image(self, image_index):
         image_id = self.image_ids[image_index]
         img = cv2.imread(os.path.join(self.image_dir, f'{image_id}.jpg'))
@@ -69,16 +138,11 @@ class WheatDataset(Dataset):
         return img.astype(np.float32) / 255.
 
     def load_annotations(self, image_index):
-        image_id = self.image_ids[index]
+        image_id = self.image_ids[image_index]
         records = self.df.loc[[image_id]]
 
         # artificial class label (one class)
         records['category_id'] = 0
-
-        # temporary solution to mislabeling in the training data
-        # ref: https://www.kaggle.com/c/global-wheat-detection/discussion/149032
-        records['area'] = records['w'] * records['h']
-        records = records[records['area'].between(150, 1100000)]
 
         annotations = records[['x', 'y', 'w', 'h', 'category_id']].values
 
@@ -112,71 +176,67 @@ def collater(data):
 
     return {'img': imgs, 'annot': annot_padded, 'scale': scales}
 
+if __name__ == '__main__':
+    #for debugging
+    import os
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
-class Resizer(object):
-    """Convert ndarrays in sample to Tensors."""
-    
-    def __init__(self, img_size=512):
-        self.img_size = img_size
+    data_dir = os.path.join(base_dir, 'data')
+    train_imgs_dir = os.path.join(data_dir, 'train')
+    test_imgs_dir = os.path.join(data_dir, 'test')
 
-    def __call__(self, sample):
-        image = sample['img']
-        height, width, _ = image.shape
-        if height > width:
-            scale = self.img_size / height
-            resized_height = self.img_size
-            resized_width = int(width * scale)
-        else:
-            scale = self.img_size / width
-            resized_height = int(height * scale)
-            resized_width = self.img_size
+    train_df, test_df = get_train_test_df(data_dir)
 
-        image = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_LINEAR)
+    immean = [0.485, 0.456, 0.406]
+    imstd = [0.229, 0.224, 0.225]
 
-        new_image = np.zeros((self.img_size, self.img_size, 3))
-        new_image[0:resized_height, 0:resized_width] = image
+    from augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, RandomRotate
+    from torchvision import transforms
+    train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
+                                          Flip(),
+                                          GaussBlur(p=0.5),
+                                          AdjustContrast(p=0.3),
+                                          AdjustBrightness(p=0.3),
+                                          AdjustGamma(p=0.3),
+                                          RandomRotate(),
+                                          Resizer(1280)])
+    test_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
+                                         Resizer(1280)])
 
-        sample = {'img': torch.from_numpy(new_image).to(torch.float32), 'scale': scale}
+    train_dataset = WheatDataset(train_df, train_imgs_dir,
+                                 train_transform, mixup=True)
 
-        if 'annot' in sample:
-            annots = sample['annot']
-            annots[:, :4] *= scale
-            sample['annot'] = torch.from_numpy(annots)
+    test_dataset = WheatDataset(test_df, test_imgs_dir,
+                                test_transform, mixup=False)
 
-        return sample
+    import cv2
+    import matplotlib.pyplot as plt
 
+    def plot_image_and_bboxes(im, bboxes=[], colors=[], bw=2,
+                          ax=None, figsize=(16, 16)):
+        """
+        im - ndarray (w, h, c)
+        bboxes - list of bboxes (xmin, ymin, xmax, ymax)
+        colors - list of colors for the bboxes (r, g, b)
+        bw - width of bboxes
+        """
+        if ax is None:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-class Augmenter(object):
-    """Convert ndarrays in sample to Tensors."""
+        if not colors:
+            colors = [(255, 0, 0) for i in range(len(bboxes))]
+        elif isinstance(colors, tuple):
+            colors = [colors for i in range(len(bboxes))]
 
-    def __call__(self, sample, flip_x=0.5):
-        if np.random.rand() < flip_x:
-            image, annots = sample['img'], sample['annot']
-            image = image[:, ::-1, :]
+        for box, color in zip(bboxes, colors):
+            cv2.rectangle(im,
+                        (int(box[0]), int(box[1])),
+                        (int(box[2]), int(box[3])),
+                        color,
+                        bw)
 
-            rows, cols, channels = image.shape
+        ax.set_axis_off()
+        ax.imshow(im)
+        return fig
 
-            x1 = annots[:, 0].copy()
-            x2 = annots[:, 2].copy()
-
-            x_tmp = x1.copy()
-
-            annots[:, 0] = cols - x2
-            annots[:, 2] = cols - x_tmp
-
-            sample = {'img': image, 'annot': annots}
-
-        return sample
-
-
-class Normalizer(object):
-
-    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
-        self.mean = np.array([[mean]])
-        self.std = np.array([[std]])
-
-    def __call__(self, sample):
-        image = sample['image']
-        sample['img'] = ((image.astype(np.float32) - self.mean) / self.std)
-
-        return sample
+    import IPython; IPython.embed(); exit(1)

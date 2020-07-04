@@ -25,8 +25,8 @@ def plot_image_and_bboxes(im, bboxes=[], colors=[], bw=2,
 
     for box, color in zip(bboxes, colors):
         cv2.rectangle(im,
-                      (box[0], box[1]),
-                      (box[2], box[3]),
+                      (int(box[0]), int(box[1])),
+                      (int(box[2]), int(box[3])),
                       color,
                       bw)
 
