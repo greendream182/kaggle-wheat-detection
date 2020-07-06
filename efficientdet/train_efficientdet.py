@@ -321,7 +321,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
                 print(
                     'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
-                        epoch, opt.num_epochs, cls_loss, reg_loss, loss))
+                        epoch, num_epochs, cls_loss, reg_loss, loss))
                 writer.add_scalars('Loss', {'val': loss}, step)
                 writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
                 writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)
@@ -332,7 +332,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
                     best_loss = loss
                     best_epoch = epoch
 
-                    save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
+                    save_checkpoint(model, f'efficientdet-d{version}_{epoch}_{step}.pth', saved_path)
 
                 model.train()
                            
