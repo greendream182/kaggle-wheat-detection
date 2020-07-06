@@ -14,11 +14,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tensorboardX import SummaryWriter
-from tqdm.autonotebook import tqdm
+from tqdm import tqdm
 
 from efficientdet.backbone import EfficientDetBackbone
 from efficientdet.dataset import get_train_test_df, WheatDataset, collater
-from efficientdet.augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, RandomRotate
+from efficientdet.augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, Scale
 
 from efficientdet.efficientdet.loss import FocalLoss
 from efficientdet.utils.sync_batchnorm import patch_replication_callback
@@ -113,16 +113,17 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     immean = [0.315, 0.317, 0.214] # mean for wheat train images
     imstd = [0.207, 0.209, 0.176] # std
 
-    train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
-                                          Flip(),
+    train_transform = transforms.Compose([Flip(),
                                           GaussBlur(p=0.5),
                                           AdjustContrast(p=0.3),
                                           AdjustBrightness(p=0.3),
                                           AdjustGamma(p=0.3),
-                                          RandomRotate(),
-                                          Resizer(input_sizes[version])])
-    test_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
-                                         Resizer(input_sizes[version])])
+                                          Scale(),
+                                          Normalizer(mean=immean, std=imstd),
+                                          Resizer(1280)])
+    test_transform = transforms.Compose([Scale(),
+                                         Normalizer(mean=immean, std=imstd),
+                                         Resizer(1280)])
 
     train_dataset = WheatDataset(train_df, train_imgs_dir,
                                  train_transform, mixup=True)
@@ -332,6 +333,7 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
                     best_loss = loss
                     best_epoch = epoch
 
+                    print('[INFO] New best epoch, total loss {:1.5f}. Saving checkpoint.'.format(loss))
                     save_checkpoint(model, f'efficientdet-d{version}_{epoch}_{step}.pth', saved_path)
 
                 model.train()
