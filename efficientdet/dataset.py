@@ -90,7 +90,7 @@ class WheatDataset(Dataset):
 
         randidx = random.randint(0, len(self.image_ids) - 1)
         if randidx == idx:
-            return sample
+            return self._getitem(idx)
 
         randimg = self.load_image(randidx)
         randannot = self.load_annotations(randidx)
@@ -127,15 +127,20 @@ class WheatDataset(Dataset):
         # drop annotations with width/height 25 or fewer pixels
         annot = annot[annot[:, 2] - annot[:, 0] > 25]
         annot = annot[annot[:, 3] - annot[:, 1] > 25]
-        
-        return {'img': img, 'annot': annot}
+
+        sample = {'img': img, 'annot': annot}
+
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
  
     def load_image(self, image_index):
         image_id = self.image_ids[image_index]
         img = cv2.imread(os.path.join(self.image_dir, f'{image_id}.jpg'))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        return img.astype(np.float32) / 255.
+        return img # not yet dividing by 255
 
     def load_annotations(self, image_index):
         image_id = self.image_ids[image_index]
@@ -187,20 +192,21 @@ if __name__ == '__main__':
 
     train_df, test_df = get_train_test_df(data_dir)
 
-    immean = [0.485, 0.456, 0.406]
-    imstd = [0.229, 0.224, 0.225]
+    immean = [0.315, 0.317, 0.214] # mean for wheat train images
+    imstd = [0.207, 0.209, 0.176] # std
 
-    from augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, RandomRotate
+    from augmentations import Normalizer, Flip, Resizer, GaussBlur, AdjustBrightness, AdjustContrast, AdjustGamma, RandomRotate, Scale
     from torchvision import transforms
-    train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
-                                          Flip(),
+    train_transform = transforms.Compose([Flip(),
                                           GaussBlur(p=0.5),
                                           AdjustContrast(p=0.3),
                                           AdjustBrightness(p=0.3),
                                           AdjustGamma(p=0.3),
-                                          RandomRotate(),
+                                          Scale(),
+                                          Normalizer(mean=immean, std=imstd),
                                           Resizer(1280)])
-    test_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
+    test_transform = transforms.Compose([Scale(),
+                                         Normalizer(mean=immean, std=imstd),
                                          Resizer(1280)])
 
     train_dataset = WheatDataset(train_df, train_imgs_dir,
@@ -220,6 +226,9 @@ if __name__ == '__main__':
         colors - list of colors for the bboxes (r, g, b)
         bw - width of bboxes
         """
+        if isinstance(im, torch.Tensor):
+            im = im.numpy()
+
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=figsize)
 
@@ -230,10 +239,10 @@ if __name__ == '__main__':
 
         for box, color in zip(bboxes, colors):
             cv2.rectangle(im,
-                        (int(box[0]), int(box[1])),
-                        (int(box[2]), int(box[3])),
-                        color,
-                        bw)
+                          (int(box[0]), int(box[1])),
+                          (int(box[2]), int(box[3])),
+                          color,
+                          bw)
 
         ax.set_axis_off()
         ax.imshow(im)

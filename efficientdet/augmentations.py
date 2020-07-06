@@ -91,14 +91,14 @@ class GaussBlur(object):
 
     def __call__(self, sample):
         if np.random.rand() < self.p:
-            sample['img'] = cv2.GaussBlur(sample['img'], self.kernel_size,
-                                          self.stdx, self.stdy)
+            sample['img'] = cv2.GaussianBlur(sample['img'], self.kernel_size,
+                                             self.stdx, self.stdy)
         return sample
 
 
 class AdjustBrightness(object):
 
-    def __init__(self, p=0.5, lb=0.7, ub=1.3):
+    def __init__(self, p=0.5, lb=0.8, ub=1.2):
         self.p = p
         self.lb = lb
         self.ub = ub
@@ -112,7 +112,7 @@ class AdjustBrightness(object):
 
 class AdjustContrast(object):
 
-    def __init__(self, p=0.5, lb=0.7, ub=1.3):
+    def __init__(self, p=0.5, lb=0.8, ub=1.2):
         self.p = p
         self.lb = lb
         self.ub = ub
@@ -126,7 +126,7 @@ class AdjustContrast(object):
 
 class AdjustGamma(object):
 
-    def __init__(self, p=0.5, lb=0.7, ub=1.3):
+    def __init__(self, p=0.5, lb=0.8, ub=1.2):
         self.p = p
         self.lb = lb
         self.ub = ub
@@ -139,7 +139,7 @@ class AdjustGamma(object):
 
 
 class RandomRotate(object):
-    """ Randomly rotate 90, 180, or 270 degrees. """
+    """ Randomly rotate 90, 180, or 270 degrees. BROKEN!"""
 
     def __init__(self, p=0.5):
         self.p = p
@@ -147,11 +147,10 @@ class RandomRotate(object):
     def __call__(self, sample):
         if np.random.rand() < self.p:
             ymax = sample['img'].shape[0] - 1
-
             for _ in range(random.randint(1, 3)):
                 # rotate 90 degrees up to 3 times
                 sample['img'] = np.rot90(sample['img'])
-                annot_new = sample['annot']
+                annot_new = sample['annot'].copy()
                 annot_new[:, 0] = ymax - sample['annot'][:, 3]
                 annot_new[:, 1] = sample['annot'][:, 0]
                 annot_new[:, 2] = ymax - sample['annot'][:, 1]
@@ -169,5 +168,17 @@ class Normalizer(object):
     def __call__(self, sample):
         image = sample['img']
         sample['img'] = ((image.astype(np.float32) - self.mean) / self.std)
+
+        return sample
+
+
+class Scale(object):
+    """ Scale image between 0 and 1 """
+
+    def __init__(self, max_pixel_val=255):
+        self.max_pixel_val = max_pixel_val
+
+    def __call__(self, sample):
+        sample['img'] = sample['img'].astype(np.float32) / 255.
 
         return sample

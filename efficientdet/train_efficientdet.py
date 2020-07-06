@@ -110,8 +110,8 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
     train_df, test_df = get_train_test_df(data_dir)
 
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
-    immean = [0.485, 0.456, 0.406]
-    imstd = [0.229, 0.224, 0.225]
+    immean = [0.315, 0.317, 0.214] # mean for wheat train images
+    imstd = [0.207, 0.209, 0.176] # std
 
     train_transform = transforms.Compose([Normalizer(mean=immean, std=imstd),
                                           Flip(),
