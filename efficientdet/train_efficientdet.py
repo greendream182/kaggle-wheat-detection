@@ -24,6 +24,14 @@ from efficientdet.efficientdet.loss import FocalLoss
 from efficientdet.utils.sync_batchnorm import patch_replication_callback
 from efficientdet.utils.utils import replace_w_sync_bn, CustomDataParallel, init_weights
 
+# Optional mixed precision idea taken fromhttps://github.com/ultralytics/yolov5/blob/master/train.py 
+mixed_precision = True
+try:  # Mixed precision training https://github.com/NVIDIA/apex
+    from apex import amp
+except:
+    print('Apex recommended for faster mixed precision training: https://github.com/NVIDIA/apex')
+    mixed_precision = False  # not installed
+
 
 class ModelWithLoss(nn.Module):
     def __init__(self, model, debug=False):
@@ -124,13 +132,13 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
 
     training_params = {'batch_size': batch_size,
                        'shuffle': True,
-                       'drop_last': True,
+                       'drop_last': False,
                        'collate_fn': collater,
                        'num_workers': num_workers}
 
     test_params = {'batch_size': batch_size,
                    'shuffle': False,
-                   'drop_last': True,
+                   'drop_last': False,
                    'collate_fn': collater,
                    'num_workers': num_workers}
 
@@ -203,6 +211,10 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
         optimizer = torch.optim.AdamW(model.parameters(), lr)
     else:
         optimizer = torch.optim.SGD(model.parameters(), lr, momentum=0.9, nesterov=True)
+
+    # Automatic mixed precision. Should enable large batches.
+    if mixed_precision:
+        model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=2, verbose=True)
 
@@ -277,9 +289,59 @@ def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, versi
                     continue
             scheduler.step(np.mean(epoch_loss))
 
-            ## NOTE: An evaluation on the validation set would normally happen here.
-            ## Will have to include it if I decide to do cross validation, which is a
-            ## question of model training time, but is definitely the better thing to do.
+            ## Evaluation done here.
+            ## Note: certain things are hardcoded here, done to save time and make sure things run.
+            if epoch % 1 == 0: # Eval on each epoch (training is slow)
+                model.eval()
+                loss_regression_ls = []
+                loss_classification_ls = []
+                for iter, data in enumerate(test_generator):
+                    with torch.no_grad():
+                        imgs = data['img']
+                        annot = data['annot']
+
+                        if num_gpus == 1:
+                            imgs = imgs.cuda()
+                            annot = annot.cuda()
+
+                        cls_loss, reg_loss = model(imgs, annot, obj_list=['wheat'])
+                        cls_loss = cls_loss.mean()
+                        reg_loss = reg_loss.mean()
+
+                        loss = cls_loss + reg_loss
+                        if loss == 0 or not torch.isfinite(loss):
+                            continue
+
+                        loss_classification_ls.append(cls_loss.item())
+                        loss_regression_ls.append(reg_loss.item())
+
+                cls_loss = np.mean(loss_classification_ls)
+                reg_loss = np.mean(loss_regression_ls)
+                loss = cls_loss + reg_loss
+
+                print(
+                    'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
+                        epoch, opt.num_epochs, cls_loss, reg_loss, loss))
+                writer.add_scalars('Loss', {'val': loss}, step)
+                writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
+                writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)
+
+                # hardcoded:
+                es_min_delta = 0.1
+                if loss + es_min_delta < best_loss:
+                    best_loss = loss
+                    best_epoch = epoch
+
+                    save_checkpoint(model, f'efficientdet-d{opt.compound_coef}_{epoch}_{step}.pth')
+
+                model.train()
+                           
+                # Early stopping
+                # hardcoded:
+                es_patience = 5
+                if epoch - best_epoch > es_patience > 0:
+                    print('[Info] Stop training at epoch {}. The lowest loss achieved is {}'.format(epoch, best_loss))
+                    break
 
     except KeyboardInterrupt:
         save_checkpoint(model, f'efficientdet-d{version}_{epoch}_{step}.pth', saved_path)
