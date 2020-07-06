@@ -14,7 +14,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tensorboardX import SummaryWriter
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 from efficientdet.backbone import EfficientDetBackbone
 from efficientdet.dataset import get_train_test_df, WheatDataset, collater
