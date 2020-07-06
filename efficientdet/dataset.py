@@ -107,7 +107,7 @@ class WheatDataset(Dataset):
             randannot = randannot[(randannot[:, 1] + 45) < cutsz] # ymin too high
             randannot[:, 3] = np.where(randannot[:, 3] >= cutsz, cutsz-1, randannot[:, 3])
             
-            annot = annot[(annot[:, 3] + 45 > cutsz] # drop annot w. low ymax
+            annot = annot[(annot[:, 3] + 45) > cutsz] # drop annot w. low ymax
             annot[:, 1] = np.where(annot[:, 1] < cutsz, cutsz, annot[:, 1])
 
             annot = np.concatenate([annot, randannot])
