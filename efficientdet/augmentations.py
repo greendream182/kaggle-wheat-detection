@@ -139,23 +139,28 @@ class AdjustGamma(object):
 
 
 class RandomRotate(object):
-    """ Randomly rotate 90, 180, or 270 degrees. BROKEN!"""
+    """ Randomly rotate 90, 180, or 270 degrees."""
 
     def __init__(self, p=0.5):
         self.p = p
 
     def __call__(self, sample):
         if np.random.rand() < self.p:
-            ymax = sample['img'].shape[0] - 1
+            im_w = sample['img'].shape[0]
+            im_h = sample['img'].shape[1]
+
             for _ in range(random.randint(1, 3)):
                 # rotate 90 degrees up to 3 times
                 sample['img'] = np.rot90(sample['img'])
-                annot_new = sample['annot'].copy()
-                annot_new[:, 0] = ymax - sample['annot'][:, 3]
-                annot_new[:, 1] = sample['annot'][:, 0]
-                annot_new[:, 2] = ymax - sample['annot'][:, 1]
-                annot_new[:, 3] = sample['annot'][:, 2]
-                sample['annot'] = annot_new
+                boxes = []
+                for box in sample['annot'][:, 4]:
+                    x1, y1, x2, y2 = box
+                    x1, y1, x2, y2 = x1-im_w//2, im_h//2 - y1, x2-im_w//2, im_h//2 - y2
+                    x1, y1, x2, y2 = y1, -x1, y2, -x2
+                    x1, y1, x2, y2 = int(x1+im_w//2), int(im_h//2 - y1), int(x2+im_w//2), int(im_h//2 - y2)
+                    x1a, y1a, x2a, y2a = min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)
+                    boxes.append([x1a, y1a, x2a, y2a])
+                sample['annot'][:, 4] = np.array(boxes).astype(np.int8)
         return sample
 
 

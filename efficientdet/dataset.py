@@ -158,6 +158,16 @@ class WheatDataset(Dataset):
         return annotations
 
 
+def collater_test(data):
+    imgs = [s['img'] for s in data]
+    scales = [s['scale'] for s in data]
+
+    imgs = torch.from_numpy(np.stack(imgs, axis=0))
+    imgs = imgs.permute(0, 3, 1, 2)
+
+    return {'img': imgs, 'scale': scales}
+
+
 def collater(data):
     imgs = [s['img'] for s in data]
     annots = [s['annot'] for s in data]

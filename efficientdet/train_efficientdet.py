@@ -25,12 +25,10 @@ from efficientdet.utils.sync_batchnorm import patch_replication_callback
 from efficientdet.utils.utils import replace_w_sync_bn, CustomDataParallel, init_weights
 
 # Optional mixed precision idea taken fromhttps://github.com/ultralytics/yolov5/blob/master/train.py 
-mixed_precision = True
 try:  # Mixed precision training https://github.com/NVIDIA/apex
     from apex import amp
 except:
     print('Apex recommended for faster mixed precision training: https://github.com/NVIDIA/apex')
-    mixed_precision = False  # not installed
 
 
 class ModelWithLoss(nn.Module):
@@ -58,7 +56,7 @@ def save_checkpoint(model, name, path):
 
 
 def train(base_dir, batch_size=8, lr=10e-4, num_epochs=20, num_workers=12, version=5, weights_path=None, head_only=False,
-          num_gpus=1, optim='adamw', seed=15501, save_interval=2000, out_dir='.', debug=False):
+          num_gpus=1, optim='adamw', seed=15501, save_interval=2000, mixed_precision=False, out_dir='.', debug=False):
     """[summary]
 
     Parameters
